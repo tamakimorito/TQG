@@ -22,3 +22,8 @@
 ## 2025/10/31 - v1.2.3
 - Feature: CSV処理時にシート名指定とデバッグモードを有効にする機能を追加。
 - Enhance: CSVファイルのエンコーディング自動判定（UTF-8/Shift_JIS）に対応。
+
+## 2025/10/28 - v1.3.1
+- キー比較を normalizeKey(NFKC+不可視除去+Uppercase) に強化。
+- debug で sampleCsvKeys/sampleAKeys を返却（原因即時特定用）。
+- I/F互換は維持、追加プロパティは任意。

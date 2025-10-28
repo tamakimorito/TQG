@@ -1,4 +1,4 @@
-/***** TQG GAS v1.1.0 (from scratch) *****/
+/***** TQG GAS v1.3.1 (from scratch) *****/
 
 const PROP_KEY_SHEETS = 'TQG_SHEETS';
 const RESP = (ok, payload = {}) =>
@@ -15,12 +15,41 @@ function normalizeAlphanumeric(str) {
     .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
 }
 
-// Base64 CSV → 2D 配列（UTF-8）
+// NFKC正規化、不可視文字除去、大文字化。キー比較用。
+function normalizeKey(str) {
+  if (str == null) return '';
+  return String(str)
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // ゼロ幅スペース等の不可視文字
+    .trim()
+    .toUpperCase();
+}
+
+// Base64 CSV → 2D 配列（UTF-8/Shift_JIS自動判別）
 function parseCsvBase64(b64) {
   const bytes = Utilities.base64Decode(b64);
-  const text = Utilities.newBlob(bytes).getDataAsString('utf-8');
+  const blob = Utilities.newBlob(bytes);
+  let text, encodingUsed;
+
+  try {
+    text = blob.getDataAsString('utf-8');
+    Utilities.parseCsv(text); // test parsing
+    encodingUsed = 'UTF-8';
+  } catch (e) {
+    try {
+      text = blob.getDataAsString('shift_jis');
+      Utilities.parseCsv(text); // test parsing
+      encodingUsed = 'Shift_JIS';
+    } catch (e2) {
+      throw new Error('CSVの解析に失敗しました。UTF-8 と Shift_JIS 両方でデコードを試みましたが、不正な形式です。');
+    }
+  }
+
   const rows = Utilities.parseCsv(text);
-  return rows.filter(r => Array.isArray(r) && r.length > 0);
+  return {
+    rows: rows.filter(r => Array.isArray(r) && r.length > 0),
+    encodingUsed,
+  };
 }
 
 function loadRegistry() {
@@ -40,8 +69,8 @@ function buildAColumnMap(sheet) {
   if (lastRow < 1) return map;
   const values = sheet.getRange(1, 1, lastRow, 1).getValues(); // A列
   for (let i = 0; i < values.length; i++) {
-    const key = normalizeAlphanumeric(values[i][0]);
-    if (!map.has(key)) map.set(key, { rowIndex: i + 1 });
+    const key = normalizeKey(values[i][0]);
+    if (key && !map.has(key)) map.set(key, { rowIndex: i + 1 });
   }
   return map;
 }
@@ -72,7 +101,7 @@ function doPost(e) {
     const action = body.action;
 
     if (action === 'listSheets') {
-      return RESP(true, { sheets: loadRegistry(), version: 'v1.1.0' });
+      return RESP(true, { sheets: loadRegistry(), version: 'v1.3.1' });
     }
 
     if (action === 'registerSheet') {
@@ -85,18 +114,18 @@ function doPost(e) {
       const exist = list.find(x => x.url === url);
       if (exist) exist.name = name; else list.push({ name, url });
       saveRegistry(list);
-      return RESP(true, { sheets: list, version: 'v1.1.0' });
+      return RESP(true, { sheets: list, version: 'v1.3.1' });
     }
 
     if (action === 'processCsv') {
-      const { sheetUrl, csvBase64 } = body;
+      const { sheetUrl, csvBase64, debug } = body;
       if (!sheetUrl) return RESP(false, { error: 'sheetUrl が未選択です' });
       if (!csvBase64) return RESP(false, { error: 'csvBase64 が空です' });
 
       const ss = openByUrl(sheetUrl);
       const sheet = ss.getActiveSheet(); // 必要なら getSheetByName('タブ名') で固定可
 
-      const csv = parseCsvBase64(csvBase64);
+      const { rows: csv, encodingUsed } = parseCsvBase64(csvBase64);
       if (!csv.length) return RESP(false, { error: 'CSVが空です' });
 
       // 先頭行が見出し（B列に "b/Ｂ/No/番号/id" 等）と推定できる場合は飛ばす
@@ -105,6 +134,10 @@ function doPost(e) {
 
       const aMap = buildAColumnMap(sheet);
 
+      const sampleAKeys = debug ? Array.from(aMap.keys()).slice(0, 10) : undefined;
+      const sampleCsvKeys = debug ? [] : undefined;
+      const hitExamples = debug ? [] : undefined;
+
       let processed = 0, matched = 0, appendedCount = 0;
       for (let i = startIdx; i < csv.length; i++) {
         const row = csv[i];
@@ -112,21 +145,34 @@ function doPost(e) {
         if (!row || row.length < 2) continue;
 
         processed++;
-        const key = normalizeAlphanumeric(row[1]);
+        const key = normalizeKey(row[1]);
         if (!key) continue;
+        
+        if (debug && sampleCsvKeys.length < 10) sampleCsvKeys.push(key);
 
         const hit = aMap.get(key);
         if (!hit) continue;
 
         matched++;
+        if (debug && hitExamples.length < 5) {
+          hitExamples.push({ csvKey: key, sheetRow: hit.rowIndex, csvRawB: row[1] });
+        }
+        
         const vals = pickQ_T_U_V_C(sheet, hit.rowIndex); // [Q,T,U,V,C]
         const lastCol = lastFilledColOfRow(sheet, hit.rowIndex);
         const writeCol = (lastCol || 0) + 1;
         sheet.getRange(hit.rowIndex, writeCol, 1, vals.length).setValues([vals]);
         appendedCount++;
       }
-
-      return RESP(true, { processed, matched, appendedCount, version: 'v1.1.0' });
+      
+      const responsePayload = { processed, matched, appendedCount, version: 'v1.3.1' };
+      if (debug) {
+        responsePayload.encodingUsed = encodingUsed;
+        responsePayload.sampleAKeys = sampleAKeys;
+        responsePayload.sampleCsvKeys = sampleCsvKeys;
+        responsePayload.hitExamples = hitExamples;
+      }
+      return RESP(true, responsePayload);
     }
 
     return RESP(false, { error: 'unknown action' });

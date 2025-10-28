@@ -6,4 +6,6 @@ export interface ProcessCsvResponse {
   error?: string;
   encodingUsed?: string;
   hitExamples?: unknown[];
+  sampleAKeys?: string[];
+  sampleCsvKeys?: string[];
 }
