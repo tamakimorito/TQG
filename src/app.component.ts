@@ -17,5 +17,5 @@ export class AppComponent {
 
   toast = this.notificationService.toast;
   isProcessing = this.notificationService.isProcessing;
-  readonly appVersion = 'v1.0.3';
+  readonly appVersion = 'v1.2.3';
 }

@@ -4,10 +4,6 @@ export interface ProcessCsvResponse {
   matched: number;
   appendedCount: number;
   error?: string;
-}
-
-// FIX: Add RegisteredSheet interface for type safety.
-export interface RegisteredSheet {
-  name: string;
-  url: string;
+  encodingUsed?: string;
+  hitExamples?: unknown[];
 }

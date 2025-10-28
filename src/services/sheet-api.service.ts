@@ -1,38 +1,9 @@
-import { Injectable, effect, signal } from '@angular/core';
-import { ProcessCsvResponse, RegisteredSheet } from '../models';
+import { Injectable } from '@angular/core';
+import { ProcessCsvResponse } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class SheetApiService {
   private readonly ENDPOINT = "https://script.google.com/macros/s/AKfycbwhG8ut__PrT9WCYiug4WqXO-nl2y2SEF8_DB6isn0PiClrWGP9Qy61UpBaSWunip0O/exec";
-  // FIX: Add storage key for localStorage persistence.
-  private readonly SHEETS_STORAGE_KEY = 'registeredSheets';
-
-  // FIX: Add sheets signal, initialized from localStorage.
-  sheets = signal<RegisteredSheet[]>(this.getInitialSheets());
-
-  constructor() {
-    // FIX: Add effect to persist sheets to localStorage on change.
-    effect(() => {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(this.SHEETS_STORAGE_KEY, JSON.stringify(this.sheets()));
-      }
-    });
-  }
-
-  private getInitialSheets(): RegisteredSheet[] {
-    if (typeof localStorage !== 'undefined') {
-      const storedSheets = localStorage.getItem(this.SHEETS_STORAGE_KEY);
-      if (storedSheets) {
-        try {
-          return JSON.parse(storedSheets);
-        } catch (e) {
-          console.error('Error parsing stored sheets from localStorage', e);
-          return [];
-        }
-      }
-    }
-    return [];
-  }
 
   private async api<T>(payload: any): Promise<T> {
     try {
@@ -80,11 +51,24 @@ export class SheetApiService {
   async processCsv(sheetUrl: string, file: File): Promise<ProcessCsvResponse> {
     const dataUrl = await this.fileToBase64(file);
     const base64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
-    return this.api<ProcessCsvResponse>({ action: 'processCsv', sheetUrl, csvBase64: base64 });
-  }
+    
+    const payload = { 
+      action: 'processCsv', 
+      sheetUrl, 
+      csvBase64: base64,
+      sheetName: 'フォームの回答1',
+      debug: true
+    };
 
-  // FIX: Implement the missing registerSheet method.
-  async registerSheet(name: string, url: string): Promise<void> {
-    this.sheets.update(sheets => [...sheets, { name, url }]);
+    const response = await this.api<ProcessCsvResponse>(payload);
+
+    if (response.ok && payload.debug && (response.encodingUsed || response.hitExamples)) {
+      console.log('Debug Info from API:', {
+        encodingUsed: response.encodingUsed,
+        hitExamples: response.hitExamples,
+      });
+    }
+
+    return response;
   }
 }
