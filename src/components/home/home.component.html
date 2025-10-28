@@ -6,26 +6,26 @@
     </p>
 
     <div class="space-y-4">
-      <!-- Step 1: Select Sheet -->
+      <!-- Step 1: Enter Sheet URL -->
       <div>
-        <label for="sheet-select" class="block text-sm font-medium text-[#5A3A1B] mb-1">
-          <span class="text-white bg-[#2E7D32] rounded-full px-2 py-0.5 mr-2">1</span>対象のスプレッドシート
+        <label for="sheet-url" class="block text-sm font-medium text-[#5A3A1B] mb-1">
+          <span class="text-white bg-[#2E7D32] rounded-full px-2 py-0.5 mr-2">1</span>対象のスプレッドシートURL
         </label>
-        <input id="sheet-select" type="text"
-               list="sheet-list"
-               (input)="onSheetNameInput($event)"
-               placeholder="シート名を入力または選択してください"
-               class="w-full p-3 border border-[#5A3A1B]/30 rounded-md bg-[#FFF9E6] focus:ring-[#FFC400] focus:border-[#FFC400] transition">
-        <datalist id="sheet-list">
-          @for (sheet of sheets(); track sheet.name) {
-            <option [value]="sheet.name"></option>
-          }
-        </datalist>
-         @if (sheets().length === 0) {
-            <p class="text-sm text-red-600 mt-1">
-              登録済みのシートがありません。Sheets Registryから登録してください。
-            </p>
-          }
+        <input id="sheet-url" type="url"
+               [value]="sheetUrl()"
+               (input)="onSheetUrlInput($event)"
+               placeholder="https://docs.google.com/spreadsheets/d/..."
+               class="w-full p-3 border rounded-md bg-[#FFF9E6] focus:ring-[#FFC400] focus:border-[#FFC400] transition"
+               [class.border-[#5A3A1B]/30]="sheetUrl() === '' || isValidSheetUrl()"
+               [class.border-red-500]="sheetUrl() !== '' && !isValidSheetUrl()"
+               [class.focus:border-red-500]="sheetUrl() !== '' && !isValidSheetUrl()"
+               [class.focus:ring-red-500]="sheetUrl() !== '' && !isValidSheetUrl()"
+               aria-invalid="{{ sheetUrl() !== '' && !isValidSheetUrl() }}">
+        @if (sheetUrl() !== '' && !isValidSheetUrl()) {
+          <p class="text-sm text-red-600 mt-1" id="url-error">
+            有効なGoogleスプレッドシートのURLを入力してください。
+          </p>
+        }
       </div>
 
       <!-- Step 2: Upload CSV -->

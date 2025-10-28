@@ -15,19 +15,17 @@ export class HomeComponent {
   sheetApiService = inject(SheetApiService);
   notificationService = inject(NotificationService);
 
-  sheets = this.sheetApiService.sheets;
-  selectedSheetName = signal('');
-  selectedSheetUrl = computed(() => {
-    const name = this.selectedSheetName();
-    const sheet = this.sheets().find(s => s.name === name);
-    return sheet?.url ?? '';
-  });
+  sheetUrl = signal('');
   selectedFile = signal<File | null>(null);
   result = signal<(ProcessCsvResponse & { duration: number; error?: string; }) | null>(null);
   
   isProcessing = this.notificationService.isProcessing;
 
-  canSubmit = computed(() => this.selectedSheetUrl() && this.selectedFile() && !this.isProcessing());
+  isValidSheetUrl = computed(() => {
+    return /^https:\/\/docs\.google\.com\/spreadsheets\/d\//.test(this.sheetUrl());
+  });
+
+  canSubmit = computed(() => this.isValidSheetUrl() && this.selectedFile() && !this.isProcessing());
 
   onFileChange(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -37,18 +35,22 @@ export class HomeComponent {
     }
   }
 
-  onSheetNameInput(event: Event) {
+  onSheetUrlInput(event: Event) {
     const input = event.target as HTMLInputElement;
-    this.selectedSheetName.set(input.value);
+    this.sheetUrl.set(input.value);
   }
 
   async onSubmit() {
     if (!this.canSubmit()) {
-      this.notificationService.showToast('有効なシートとCSVファイルを選択してください。', 'error');
+      if (!this.isValidSheetUrl()) {
+          this.notificationService.showToast('有効なスプレッドシートURLを入力してください。', 'error');
+      } else if (!this.selectedFile()) {
+          this.notificationService.showToast('CSVファイルを選択してください。', 'error');
+      }
       return;
     }
 
-    if (!confirm('選択したシートとCSVで処理を実行します。よろしいですか？')) {
+    if (!confirm('入力したURLのシートとCSVで処理を実行します。よろしいですか？')) {
       return;
     }
     
@@ -58,10 +60,10 @@ export class HomeComponent {
 
     try {
       const file = this.selectedFile();
-      const sheetUrl = this.selectedSheetUrl();
-      if (!file || !sheetUrl) throw new Error("File or Sheet URL is missing.");
+      const sheetUrlValue = this.sheetUrl();
+      if (!file || !sheetUrlValue) throw new Error("File or Sheet URL is missing.");
 
-      const response = await this.sheetApiService.processCsv(sheetUrl, file);
+      const response = await this.sheetApiService.processCsv(sheetUrlValue, file);
       
       const endTime = performance.now();
       const duration = Math.round((endTime - startTime) / 100) / 10;

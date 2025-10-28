@@ -12,7 +12,8 @@ import { NotificationService } from '../../services/notification.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RegistryComponent {
-  private fb = inject(FormBuilder);
+  // FIX: Explicitly type the injected FormBuilder to fix type inference issue.
+  private fb: FormBuilder = inject(FormBuilder);
   sheetApiService = inject(SheetApiService);
   notificationService = inject(NotificationService);
 
