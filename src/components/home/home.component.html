@@ -1,0 +1,91 @@
+<div class="max-w-2xl mx-auto">
+  <div class="bg-white/60 rounded-xl shadow-lg p-6 sm:p-8 space-y-6 border border-[#5A3A1B]/10">
+    <h1 class="text-3xl font-bold text-center text-[#5A3A1B]">TQG 実行</h1>
+    <p class="text-center text-[#5A3A1B]/80">
+      CSVのB列（英字の全角/半角差を吸収）とスプレッドシートのA列を照合し、一致した各行の「右端の次の列」から [Q,T,U,V,C] を横方向に貼り付けます。
+    </p>
+
+    <div class="space-y-4">
+      <!-- Step 1: Select Sheet -->
+      <div>
+        <label for="sheet-select" class="block text-sm font-medium text-[#5A3A1B] mb-1">
+          <span class="text-white bg-[#2E7D32] rounded-full px-2 py-0.5 mr-2">1</span>対象のスプレッドシート
+        </label>
+        <input id="sheet-select" type="text"
+               list="sheet-list"
+               (input)="onSheetNameInput($event)"
+               placeholder="シート名を入力または選択してください"
+               class="w-full p-3 border border-[#5A3A1B]/30 rounded-md bg-[#FFF9E6] focus:ring-[#FFC400] focus:border-[#FFC400] transition">
+        <datalist id="sheet-list">
+          @for (sheet of sheets(); track sheet.name) {
+            <option [value]="sheet.name"></option>
+          }
+        </datalist>
+         @if (sheets().length === 0) {
+            <p class="text-sm text-red-600 mt-1">
+              登録済みのシートがありません。Sheets Registryから登録してください。
+            </p>
+          }
+      </div>
+
+      <!-- Step 2: Upload CSV -->
+      <div>
+        <label for="csv-upload" class="block text-sm font-medium text-[#5A3A1B] mb-1">
+          <span class="text-white bg-[#2E7D32] rounded-full px-2 py-0.5 mr-2">2</span>CSVファイル
+        </label>
+        <input type="file" id="csv-upload" accept=".csv"
+               (change)="onFileChange($event)"
+               class="w-full text-sm text-[#5A3A1B] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#FFC400]/20 file:text-[#5A3A1B] hover:file:bg-[#FFC400]/40 transition" />
+        @if (selectedFile(); as file) {
+          <p class="text-sm text-gray-600 mt-2">選択中のファイル: {{ file.name }}</p>
+        }
+      </div>
+    </div>
+
+    <!-- Step 3: Execute -->
+    <div class="pt-4">
+        <button (click)="onSubmit()"
+              [disabled]="!canSubmit()"
+              [class.processing]="isProcessing()"
+              class="tqg-button relative w-full h-16 text-2xl font-logo tracking-widest text-[#5A3A1B] font-bold rounded-full overflow-hidden
+                     bg-gradient-to-b from-[#FFCF33] to-[#FFA000] shadow-lg
+                     hover:scale-105 active:scale-100 transition-transform duration-150
+                     disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100">
+            <span class="tqg-text">TQG</span>
+            <span class="dadada absolute inset-0 whitespace-nowrap text-lg opacity-60">ダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダダ</span>
+        </button>
+    </div>
+  </div>
+
+  <!-- Result Display -->
+  @if(result(); as res) {
+    <div class="mt-8 bg-white/60 rounded-xl shadow-lg p-6 border border-[#5A3A1B]/10">
+      <h2 class="text-2xl font-bold text-center text-[#5A3A1B]">実行結果</h2>
+      @if (res.error) {
+        <div class="mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert">
+          <p class="font-bold">エラーが発生しました</p>
+          <p>{{ res.error }}</p>
+        </div>
+      } @else {
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+          <div class="bg-[#FFF9E6] p-4 rounded-lg">
+            <p class="text-sm text-[#5A3A1B]/70">処理時間</p>
+            <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.duration }}<span class="text-base ml-1">秒</span></p>
+          </div>
+          <div class="bg-[#FFF9E6] p-4 rounded-lg">
+            <p class="text-sm text-[#5A3A1B]/70">CSV処理行数</p>
+            <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.processed }}</p>
+          </div>
+          <div class="bg-[#FFF9E6] p-4 rounded-lg">
+            <p class="text-sm text-[#5A3A1B]/70">一致件数</p>
+            <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.matched }}</p>
+          </div>
+          <div class="bg-[#FFF9E6] p-4 rounded-lg">
+            <p class="text-sm text-[#5A3A1B]/70">データ追記件数</p>
+            <p class="text-2xl font-bold text-[#2E7D32]">{{ res.appendedCount }}</p>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,5 @@
+{
+  "name": "TQG",
+  "description": "An application to upload a CSV, match it against a Google Sheet, and append specific columns from matched rows to the end of the sheet. Features a Sheets Registry to manage target spreadsheets.",
+  "requestFramePermissions": []
+}
