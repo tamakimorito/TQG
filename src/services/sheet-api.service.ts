@@ -1,6 +1,11 @@
 import { Injectable } from '@angular/core';
 import { ProcessCsvResponse } from '../models';
 
+export interface ProcessCsvOptions {
+  encodingHint?: string;
+  mdqOnly?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SheetApiService {
   private readonly ENDPOINT = "https://script.google.com/macros/s/AKfycbwhG8ut__PrT9WCYiug4WqXO-nl2y2SEF8_DB6isn0PiClrWGP9Qy61UpBaSWunip0O/exec";
@@ -48,7 +53,7 @@ export class SheetApiService {
     });
   }
 
-  async processCsv(sheetUrl: string, file: File): Promise<ProcessCsvResponse> {
+  async processCsv(sheetUrl: string, file: File, options: ProcessCsvOptions = {}): Promise<ProcessCsvResponse> {
     const dataUrl = await this.fileToBase64(file);
     const base64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
     
@@ -57,7 +62,9 @@ export class SheetApiService {
       sheetUrl, 
       csvBase64: base64,
       sheetName: 'フォームの回答1',
-      debug: true
+      debug: true,
+      ...(options.encodingHint && { encodingHint: options.encodingHint }),
+      ...(options.mdqOnly && { mdqOnly: options.mdqOnly }),
     };
 
     const response = await this.api<ProcessCsvResponse>(payload);

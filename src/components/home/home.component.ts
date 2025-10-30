@@ -1,6 +1,6 @@
 import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SheetApiService } from '../../services/sheet-api.service';
+import { SheetApiService, ProcessCsvOptions } from '../../services/sheet-api.service';
 import { NotificationService } from '../../services/notification.service';
 import { ProcessCsvResponse } from '../../models';
 
@@ -19,6 +19,9 @@ export class HomeComponent {
   selectedFile = signal<File | null>(null);
   result = signal<(ProcessCsvResponse & { duration: number; error?: string; }) | null>(null);
   
+  encodingHint = signal('');
+  mdqOnly = signal(false);
+
   isProcessing = this.notificationService.isProcessing;
 
   isValidSheetUrl = computed(() => {
@@ -38,6 +41,16 @@ export class HomeComponent {
   onSheetUrlInput(event: Event) {
     const input = event.target as HTMLInputElement;
     this.sheetUrl.set(input.value);
+  }
+
+  onEncodingChange(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    this.encodingHint.set(select.value);
+  }
+
+  onMdqOnlyChange(event: Event) {
+    const checkbox = event.target as HTMLInputElement;
+    this.mdqOnly.set(checkbox.checked);
   }
 
   async onSubmit() {
@@ -63,7 +76,11 @@ export class HomeComponent {
       const sheetUrlValue = this.sheetUrl();
       if (!file || !sheetUrlValue) throw new Error("File or Sheet URL is missing.");
 
-      const response = await this.sheetApiService.processCsv(sheetUrlValue, file);
+      const options: ProcessCsvOptions = {
+        encodingHint: this.encodingHint(),
+        mdqOnly: this.mdqOnly()
+      };
+      const response = await this.sheetApiService.processCsv(sheetUrlValue, file, options);
       
       const endTime = performance.now();
       const duration = Math.round((endTime - startTime) / 100) / 10;

@@ -41,6 +41,41 @@
           <p class="text-sm text-gray-600 mt-2">選択中のファイル: {{ file.name }}</p>
         }
       </div>
+      
+      <!-- Optional Settings -->
+      <div class="space-y-2 pt-2">
+          <label class="block text-sm font-medium text-[#5A3A1B] mb-1">
+            <span class="text-white bg-gray-400 rounded-full px-2 py-0.5 mr-2">任意</span>オプション設定
+          </label>
+          <div class="p-4 border border-[#5A3A1B]/20 rounded-md space-y-4 bg-white/30">
+              <!-- Encoding Hint -->
+              <div>
+                  <label for="encoding-hint" class="block text-sm font-medium text-[#5A3A1B] mb-1">文字コード指定</label>
+                  <select id="encoding-hint"
+                          [value]="encodingHint()"
+                          (change)="onEncodingChange($event)"
+                          class="w-full p-2 border rounded-md bg-[#FFF9E6] focus:ring-[#FFC400] focus:border-[#FFC400] transition border-[#5A3A1B]/30">
+                      <option value="">自動判別</option>
+                      <option value="Windows-31J">Shift_JIS (Windows-31J)</option>
+                      <option value="UTF-8">UTF-8</option>
+                  </select>
+                  <p class="text-xs text-gray-500 mt-1">通常は「自動判別」で問題ありません。CSVの文字化けが起こる場合に指定してください。</p>
+              </div>
+
+              <!-- MDQ Only -->
+              <div class="relative flex items-start">
+                <div class="flex h-6 items-center">
+                  <input id="mdq-only" type="checkbox"
+                         [checked]="mdqOnly()"
+                         (change)="onMdqOnlyChange($event)"
+                         class="h-4 w-4 rounded border-gray-300 text-[#FFC400] focus:ring-[#FFC400]">
+                </div>
+                <div class="ml-3 text-sm leading-6">
+                  <label for="mdq-only" class="font-medium text-[#5A3A1B]">「MDQ」で始まるキーのみを照合する</label>
+                </div>
+              </div>
+          </div>
+      </div>
     </div>
 
     <!-- Step 3: Execute -->
