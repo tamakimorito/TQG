@@ -61,7 +61,7 @@ export class SheetApiService {
       action: 'processCsv', 
       sheetUrl, 
       csvBase64: base64,
-      sheetName: 'フォームの回答1',
+      sheetName: 'フォームの回答 1',  // 「回答」と「1」の間に半角スペース
       debug: true,
       ...(options.encodingHint && { encodingHint: options.encodingHint }),
       ...(options.mdqOnly && { mdqOnly: options.mdqOnly }),
