@@ -27,3 +27,11 @@
 - キー比較を normalizeKey(NFKC+不可視除去+Uppercase) に強化。
 - debug で sampleCsvKeys/sampleAKeys を返却（原因即時特定用）。
 - I/F互換は維持、追加プロパティは任意。
+
+## 2025/11/01 - v1.6.2
+- Add でんき系4項目（H/M/N/O列）を同一突合条件で書き込み、ヘッダも新設（既存5列の後ろに追加する想定）。
+- Allow csvPickByLetters to accept 9列指定（5列指定も後方互換）。
+
+## 2025/11/02 - v1.6.3
+- Fix: reuse existing matching headers for overwrites and only append missing ones at the sheet tail (no duplicate header growth).
+- Docs: clarify header reuse/append behavior and bump version labels to v1.6.3.
