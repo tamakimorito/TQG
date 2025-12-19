@@ -2,6 +2,11 @@
 - Format: `YYYY/MM/DD - vX.Y.Z`: short title
 - Rules: append-only, do not rewrite history.
 
+## 2025/12/19 - v1.3.2
+- Feature: 1つのCSVを複数スプレッドシートへ連続適用する UI/処理を追加（タブ名も任意指定可、合計サマリ表示）。
+- Update: バックエンド GAS v1.6.3 仕様を記録し、レスポンス項目（updatedCount 等）に合わせて画面表示を刷新。
+- Docs: memory/spec.md を新設し、最新仕様と GAS スクリプト全文を保存。開発ルールを 0.01 刻み運用に明記。
+
 ## 2025/10/27 - v1.0.0
 - Create TQG app: CSV.B ↔ Sheet.A lookup (zenkaku/hankaku A–Z insensitive).
 - Append [Q,T,U,V,C] per hit as one row at tail.

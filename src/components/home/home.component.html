@@ -2,31 +2,57 @@
   <div class="bg-white/60 rounded-xl shadow-lg p-6 sm:p-8 space-y-6 border border-[#5A3A1B]/10">
     <h1 class="text-3xl font-bold text-center text-[#5A3A1B]">TQG</h1>
     <p class="text-center text-[#5A3A1B]/80">
-      CSVのB列（英数字の全角/半角差を吸収）とスプレッドシートのA列を照合し、一致した各行の「右端の次の列」から [Q,T,U,V,C] を横方向に貼り付けます。<br>
-      CSVはUTF-8/Shift_JISいずれでも可。
+      CSV の MDQ キー列（全角/半角・不可視文字差を吸収）とスプレッドシート A 列を突合し、[ガス/でんき系の 9 列] を上書きします。<br>
+      同じ CSV を複数のスプレッドシートへ連続適用できます。CSV は UTF-8 / Shift_JIS いずれでも可。
     </p>
 
     <div class="space-y-4">
       <!-- Step 1: Enter Sheet URL -->
       <div>
-        <label for="sheet-url" class="block text-sm font-medium text-[#5A3A1B] mb-1">
-          <span class="text-white bg-[#2E7D32] rounded-full px-2 py-0.5 mr-2">1</span>対象のスプレッドシートURL
+        <label class="block text-sm font-medium text-[#5A3A1B] mb-1">
+          <span class="text-white bg-[#2E7D32] rounded-full px-2 py-0.5 mr-2">1</span>対象のスプレッドシート（複数指定可）
         </label>
-        <input id="sheet-url" type="url"
-               [value]="sheetUrl()"
-               (input)="onSheetUrlInput($event)"
-               placeholder="https://docs.google.com/spreadsheets/d/..."
-               class="w-full p-3 border rounded-md bg-[#FFF9E6] focus:ring-[#FFC400] focus:border-[#FFC400] transition"
-               [class.border-[#5A3A1B]/30]="sheetUrl() === '' || isValidSheetUrl()"
-               [class.border-red-500]="sheetUrl() !== '' && !isValidSheetUrl()"
-               [class.focus:border-red-500]="sheetUrl() !== '' && !isValidSheetUrl()"
-               [class.focus:ring-red-500]="sheetUrl() !== '' && !isValidSheetUrl()"
-               aria-invalid="{{ sheetUrl() !== '' && !isValidSheetUrl() }}">
-        @if (sheetUrl() !== '' && !isValidSheetUrl()) {
-          <p class="text-sm text-red-600 mt-1" id="url-error">
-            有効なGoogleスプレッドシートのURLを入力してください。
-          </p>
-        }
+        <div class="space-y-3">
+          @for (sheet of sheetInputs(); track sheet.id; let idx = $index) {
+            <div class="p-3 bg-white/50 border border-[#5A3A1B]/15 rounded-lg space-y-2">
+              <div class="flex items-center justify-between">
+                <p class="font-semibold text-[#5A3A1B]">シート {{ idx + 1 }}</p>
+                @if (sheetInputs().length > 1) {
+                  <button type="button"
+                          class="text-sm text-red-600 hover:underline"
+                          (click)="removeSheetInput(sheet.id)">
+                    削除
+                  </button>
+                }
+              </div>
+              <input type="url"
+                     [value]="sheet.url"
+                     (input)="onSheetUrlInput(sheet.id, $event)"
+                     placeholder="https://docs.google.com/spreadsheets/d/..."
+                     class="w-full p-3 border rounded-md bg-[#FFF9E6] focus:ring-[#FFC400] focus:border-[#FFC400] transition"
+                     [class.border-[#5A3A1B]/30]="sheet.url.trim() === '' || isValidSheetUrl(sheet.url)"
+                     [class.border-red-500]="sheet.url.trim() !== '' && !isValidSheetUrl(sheet.url)"
+                     [class.focus:border-red-500]="sheet.url.trim() !== '' && !isValidSheetUrl(sheet.url)"
+                     [class.focus:ring-red-500]="sheet.url.trim() !== '' && !isValidSheetUrl(sheet.url)"
+                     aria-invalid="{{ sheet.url.trim() !== '' && !isValidSheetUrl(sheet.url) }}">
+              @if (sheet.url.trim() !== '' && !isValidSheetUrl(sheet.url)) {
+                <p class="text-sm text-red-600 mt-1">
+                  有効なGoogleスプレッドシートのURLを入力してください。
+                </p>
+              }
+              <input type="text"
+                     [value]="sheet.sheetName"
+                     (input)="onSheetNameInput(sheet.id, $event)"
+                     placeholder="タブ名（任意。未指定ならアクティブなタブを使用）"
+                     class="w-full p-3 border rounded-md bg-[#FFF9E6] focus:ring-[#FFC400] focus:border-[#FFC400] transition border-[#5A3A1B]/30">
+            </div>
+          }
+          <button type="button"
+                  class="w-full border border-dashed border-[#5A3A1B]/30 rounded-md py-2 text-[#5A3A1B] hover:bg-[#FFC400]/10 transition"
+                  (click)="addSheetInput()">
+            + シートを追加
+          </button>
+        </div>
       </div>
 
       <!-- Step 2: Upload CSV -->
@@ -97,31 +123,88 @@
   @if(result(); as res) {
     <div class="mt-8 bg-white/60 rounded-xl shadow-lg p-6 border border-[#5A3A1B]/10">
       <h2 class="text-2xl font-bold text-center text-[#5A3A1B]">実行結果</h2>
-      @if (res.error) {
-        <div class="mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert">
-          <p class="font-bold">エラーが発生しました</p>
-          <p>{{ res.error }}</p>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+        <div class="bg-[#FFF9E6] p-4 rounded-lg">
+          <p class="text-sm text-[#5A3A1B]/70">総処理時間</p>
+          <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.totalDuration }}<span class="text-base ml-1">秒</span></p>
         </div>
-      } @else {
-        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
-          <div class="bg-[#FFF9E6] p-4 rounded-lg">
-            <p class="text-sm text-[#5A3A1B]/70">処理時間</p>
-            <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.duration }}<span class="text-base ml-1">秒</span></p>
-          </div>
-          <div class="bg-[#FFF9E6] p-4 rounded-lg">
-            <p class="text-sm text-[#5A3A1B]/70">CSV処理行数</p>
-            <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.processed }}</p>
-          </div>
-          <div class="bg-[#FFF9E6] p-4 rounded-lg">
-            <p class="text-sm text-[#5A3A1B]/70">一致件数</p>
-            <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.matched }}</p>
-          </div>
-          <div class="bg-[#FFF9E6] p-4 rounded-lg">
-            <p class="text-sm text-[#5A3A1B]/70">データ追記件数</p>
-            <p class="text-2xl font-bold text-[#2E7D32]">{{ res.appendedCount }}</p>
-          </div>
+        <div class="bg-[#FFF9E6] p-4 rounded-lg">
+          <p class="text-sm text-[#5A3A1B]/70">対象シート数</p>
+          <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.entries.length }}</p>
         </div>
-      }
+        <div class="bg-[#FFF9E6] p-4 rounded-lg">
+          <p class="text-sm text-[#5A3A1B]/70">総処理行数</p>
+          <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.totals.processed }}</p>
+        </div>
+        <div class="bg-[#FFF9E6] p-4 rounded-lg">
+          <p class="text-sm text-[#5A3A1B]/70">更新件数</p>
+          <p class="text-2xl font-bold text-[#2E7D32]">{{ res.totals.updated }}</p>
+        </div>
+      </div>
+
+      <div class="mt-6 space-y-4">
+        @for (entry of res.entries; track entry.target.sheetUrl + (entry.target.sheetName || '') + entry.duration; let idx = $index) {
+          <div class="bg-[#FFF9E6]/60 border border-[#5A3A1B]/10 rounded-lg p-4 space-y-3">
+            <div class="flex items-start justify-between gap-4">
+              <div class="space-y-1 min-w-0">
+                <p class="text-sm font-semibold text-[#5A3A1B]">シート {{ idx + 1 }}</p>
+                <p class="text-sm text-[#5A3A1B]/90 break-all">{{ entry.target.sheetUrl }}</p>
+                @if (entry.target.sheetName) {
+                  <p class="text-xs text-[#5A3A1B]/70">タブ名: {{ entry.target.sheetName }}</p>
+                }
+              </div>
+              <span
+                class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
+                [class.bg-[#2E7D32]/10]="entry.response.ok"
+                [class.text-[#2E7D32]]="entry.response.ok"
+                [class.bg-red-100]="!entry.response.ok"
+                [class.text-red-700]="!entry.response.ok">
+                {{ entry.response.ok ? '成功' : '失敗' }}
+              </span>
+            </div>
+
+            @if (entry.response.ok) {
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-center">
+                <div class="bg-white/70 p-3 rounded-md">
+                  <p class="text-xs text-[#5A3A1B]/70">処理時間</p>
+                  <p class="text-xl font-bold text-[#5A3A1B]">{{ entry.duration }}<span class="text-sm ml-1">秒</span></p>
+                </div>
+                <div class="bg-white/70 p-3 rounded-md">
+                  <p class="text-xs text-[#5A3A1B]/70">処理行数</p>
+                  <p class="text-xl font-bold text-[#5A3A1B]">{{ entry.response.processed }}</p>
+                </div>
+                <div class="bg-white/70 p-3 rounded-md">
+                  <p class="text-xs text-[#5A3A1B]/70">一致 (厳密/セカンダリ)</p>
+                  <p class="text-xl font-bold text-[#5A3A1B]">
+                    {{ entry.response.matchedStrict ?? entry.response.matched ?? 0 }}
+                    <span class="text-sm text-[#5A3A1B]/70"> / {{ entry.response.matchedFallback ?? 0 }}</span>
+                  </p>
+                </div>
+                <div class="bg-white/70 p-3 rounded-md">
+                  <p class="text-xs text-[#5A3A1B]/70">更新件数</p>
+                  <p class="text-xl font-bold text-[#2E7D32]">{{ entry.response.updatedCount ?? entry.response.appendedCount ?? 0 }}</p>
+                </div>
+                <div class="bg-white/70 p-3 rounded-md">
+                  <p class="text-xs text-[#5A3A1B]/70">未一致</p>
+                  <p class="text-xl font-bold text-[#5A3A1B]">{{ entry.response.unmatchedCount ?? 0 }}</p>
+                </div>
+                <div class="bg-white/70 p-3 rounded-md">
+                  <p class="text-xs text-[#5A3A1B]/70">文字コード判定</p>
+                  <p class="text-xl font-bold text-[#5A3A1B]">{{ entry.response.encodingUsed || '---' }}</p>
+                </div>
+              </div>
+            } @else {
+              <div class="bg-red-50 border border-red-200 text-red-800 p-3 rounded-md">
+                <p class="font-semibold">エラーが発生しました</p>
+                <p class="text-sm mt-1 break-all">{{ entry.response.error || '処理に失敗しました。' }}</p>
+                @if (entry.response.phase || entry.response.code) {
+                  <p class="text-xs mt-1">phase: {{ entry.response.phase || '---' }} / code: {{ entry.response.code || '---' }}</p>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
     </div>
   }
 </div>

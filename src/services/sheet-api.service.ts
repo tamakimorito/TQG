@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { ProcessCsvResponse } from '../models';
+import { ProcessCsvResponse, ProcessCsvResult, SheetTarget } from '../models';
 
 export interface ProcessCsvOptions {
   encodingHint?: string;
@@ -10,37 +10,24 @@ export interface ProcessCsvOptions {
 export class SheetApiService {
   private readonly ENDPOINT = "https://script.google.com/macros/s/AKfycbwhG8ut__PrT9WCYiug4WqXO-nl2y2SEF8_DB6isn0PiClrWGP9Qy61UpBaSWunip0O/exec";
 
-  private async api<T>(payload: any): Promise<T> {
+  private async callProcessCsv(payload: any): Promise<ProcessCsvResponse> {
+    const response = await fetch(this.ENDPOINT, {
+      method: "POST",
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+    });
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(`Network error: ${response.status} ${response.statusText}. Response: ${responseText}`);
+    }
+
     try {
-      const response = await fetch(this.ENDPOINT, {
-        method: "POST",
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload),
-      });
-
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        throw new Error(`Network error: ${response.status} ${response.statusText}. Response: ${responseText}`);
-      }
-
-      try {
-        const json = JSON.parse(responseText);
-        if (!json.ok) {
-          throw new Error(json.error || "An unknown API error occurred");
-        }
-        return json as T;
-      } catch (e) {
-        console.error("Failed to parse JSON from response text:", responseText, e);
-        throw new Error(`API returned an invalid response. Body: ${responseText}`);
-      }
-
-    } catch (error) {
-        if (error instanceof Error) {
-            console.error("API call failed:", error.message);
-            throw error;
-        }
-        throw new Error("An unknown error occurred during the API call.");
+      return JSON.parse(responseText) as ProcessCsvResponse;
+    } catch (e) {
+      console.error("Failed to parse JSON from response text:", responseText, e);
+      throw new Error(`API returned an invalid response. Body: ${responseText}`);
     }
   }
 
@@ -53,29 +40,50 @@ export class SheetApiService {
     });
   }
 
-  async processCsv(sheetUrl: string, file: File, options: ProcessCsvOptions = {}): Promise<ProcessCsvResponse> {
+  private async fileToCsvBase64(file: File): Promise<string> {
     const dataUrl = await this.fileToBase64(file);
-    const base64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
-    
-    const payload = { 
-      action: 'processCsv', 
-      sheetUrl, 
-      csvBase64: base64,
-      sheetName: 'フォームの回答 1',  // 「回答」と「1」の間に半角スペース
+    const commaIndex = dataUrl.indexOf(',');
+    return commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
+  }
+
+  private buildPayload(target: SheetTarget, csvBase64: string, options: ProcessCsvOptions) {
+    return {
+      action: 'processCsv',
+      sheetUrl: target.sheetUrl,
+      csvBase64,
       debug: true,
-      ...(options.encodingHint && { encodingHint: options.encodingHint }),
-      ...(options.mdqOnly && { mdqOnly: options.mdqOnly }),
+      ...(target.sheetName && target.sheetName.trim() ? { sheetName: target.sheetName.trim() } : {}),
+      ...(options.encodingHint ? { encodingHint: options.encodingHint } : {}),
+      ...(options.mdqOnly ? { mdqOnly: options.mdqOnly } : {}),
     };
+  }
 
-    const response = await this.api<ProcessCsvResponse>(payload);
+  async processCsvForTargets(targets: SheetTarget[], file: File, options: ProcessCsvOptions = {}): Promise<ProcessCsvResult[]> {
+    const csvBase64 = await this.fileToCsvBase64(file);
+    const results: ProcessCsvResult[] = [];
 
-    if (response.ok && payload.debug && (response.encodingUsed || response.hitExamples)) {
-      console.log('Debug Info from API:', {
-        encodingUsed: response.encodingUsed,
-        hitExamples: response.hitExamples,
-      });
+    for (const target of targets) {
+      const startTime = performance.now();
+      try {
+        const response = await this.callProcessCsv(this.buildPayload(target, csvBase64, options));
+        const duration = Math.round((performance.now() - startTime) / 100) / 10;
+        results.push({ target, response, duration });
+      } catch (error) {
+        const duration = Math.round((performance.now() - startTime) / 100) / 10;
+        const message = error instanceof Error ? error.message : String(error);
+        results.push({
+          target,
+          response: { ok: false, processed: 0, matched: 0, updatedCount: 0, error: message },
+          duration,
+        });
+      }
     }
 
-    return response;
+    return results;
+  }
+
+  async processCsv(sheetUrl: string, file: File, options: ProcessCsvOptions = {}, sheetName?: string): Promise<ProcessCsvResponse> {
+    const [first] = await this.processCsvForTargets([{ sheetUrl, sheetName }], file, options);
+    return first?.response ?? { ok: false, processed: 0, matched: 0, updatedCount: 0, error: '処理結果を取得できませんでした。' };
   }
 }
