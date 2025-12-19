@@ -2,7 +2,21 @@ import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@a
 import { CommonModule } from '@angular/common';
 import { SheetApiService, ProcessCsvOptions } from '../../services/sheet-api.service';
 import { NotificationService } from '../../services/notification.service';
-import { ProcessCsvResponse } from '../../models';
+import { SheetProcessResult, SheetTarget } from '../../models';
+
+interface SheetTargetInput extends SheetTarget {
+  id: number;
+}
+
+interface BatchResult {
+  totalDuration: number;
+  totalProcessed: number;
+  totalMatched: number;
+  totalAppended: number;
+  successCount: number;
+  failureCount: number;
+  items: SheetProcessResult[];
+}
 
 @Component({
   selector: 'app-home',
@@ -15,20 +29,38 @@ export class HomeComponent {
   sheetApiService = inject(SheetApiService);
   notificationService = inject(NotificationService);
 
-  sheetUrl = signal('');
+  private nextId = 1;
+  readonly maxSheetTargets = 5;
+  sheetEntries = signal<SheetTargetInput[]>([{ id: this.nextId++, url: '', sheetName: '' }]);
   selectedFile = signal<File | null>(null);
-  result = signal<(ProcessCsvResponse & { duration: number; error?: string; }) | null>(null);
-  
+  result = signal<BatchResult | null>(null);
+
   encodingHint = signal('');
   mdqOnly = signal(false);
 
   isProcessing = this.notificationService.isProcessing;
 
-  isValidSheetUrl = computed(() => {
-    return /^https:\/\/docs\.google\.com\/spreadsheets\/d\//.test(this.sheetUrl());
-  });
+  isValidSheetUrl(url: string) {
+    return /^https:\/\/docs\.google\.com\/spreadsheets\/d\//.test(url.trim());
+  }
 
-  canSubmit = computed(() => this.isValidSheetUrl() && this.selectedFile() && !this.isProcessing());
+  validSheetEntries = computed(() =>
+    this.sheetEntries()
+      .filter(entry => entry.url.trim() !== '')
+      .filter(entry => this.isValidSheetUrl(entry.url))
+      .map(({ url, sheetName }) => ({ url: url.trim(), sheetName: sheetName.trim() || undefined }))
+  );
+
+  hasInvalidSheetUrl = computed(() =>
+    this.sheetEntries().some(entry => entry.url.trim() !== '' && !this.isValidSheetUrl(entry.url))
+  );
+
+  canSubmit = computed(() => {
+    return this.validSheetEntries().length > 0 &&
+      this.selectedFile() &&
+      !this.hasInvalidSheetUrl() &&
+      !this.isProcessing();
+  });
 
   onFileChange(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -38,9 +70,33 @@ export class HomeComponent {
     }
   }
 
-  onSheetUrlInput(event: Event) {
+  addSheetEntry() {
+    if (this.sheetEntries().length >= this.maxSheetTargets) return;
+    this.sheetEntries.update(list => [...list, { id: this.nextId++, url: '', sheetName: '' }]);
+  }
+
+  removeSheetEntry(index: number) {
+    if (this.sheetEntries().length === 1) return;
+    this.sheetEntries.update(list => list.filter((_, i) => i !== index));
+    this.result.set(null);
+  }
+
+  onSheetUrlInput(index: number, event: Event) {
     const input = event.target as HTMLInputElement;
-    this.sheetUrl.set(input.value);
+    const value = input.value;
+    this.sheetEntries.update(list =>
+      list.map((entry, i) => i === index ? { ...entry, url: value } : entry)
+    );
+    this.result.set(null);
+  }
+
+  onSheetNameInput(index: number, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const value = input.value;
+    this.sheetEntries.update(list =>
+      list.map((entry, i) => i === index ? { ...entry, sheetName: value } : entry)
+    );
+    this.result.set(null);
   }
 
   onEncodingChange(event: Event) {
@@ -54,16 +110,20 @@ export class HomeComponent {
   }
 
   async onSubmit() {
-    if (!this.canSubmit()) {
-      if (!this.isValidSheetUrl()) {
-          this.notificationService.showToast('有効なスプレッドシートURLを入力してください。', 'error');
+    const validTargets = this.validSheetEntries();
+
+    if (!this.canSubmit() || validTargets.length === 0) {
+      if (this.hasInvalidSheetUrl()) {
+        this.notificationService.showToast('有効なスプレッドシートURLを入力してください。', 'error');
       } else if (!this.selectedFile()) {
-          this.notificationService.showToast('CSVファイルを選択してください。', 'error');
+        this.notificationService.showToast('CSVファイルを選択してください。', 'error');
+      } else {
+        this.notificationService.showToast('処理対象のシートURLを入力してください。', 'error');
       }
       return;
     }
 
-    if (!confirm('入力したURLのシートとCSVで処理を実行します。よろしいですか？')) {
+    if (!confirm(`入力した${validTargets.length}件のシートとCSVで処理を実行します。よろしいですか？`)) {
       return;
     }
     
@@ -73,32 +133,53 @@ export class HomeComponent {
 
     try {
       const file = this.selectedFile();
-      const sheetUrlValue = this.sheetUrl();
-      if (!file || !sheetUrlValue) throw new Error("File or Sheet URL is missing.");
+      if (!file) throw new Error("File is missing.");
 
       const options: ProcessCsvOptions = {
         encodingHint: this.encodingHint(),
         mdqOnly: this.mdqOnly()
       };
-      const response = await this.sheetApiService.processCsv(sheetUrlValue, file, options);
-      
-      const endTime = performance.now();
-      const duration = Math.round((endTime - startTime) / 100) / 10;
-      
-      this.result.set({ ...response, duration });
-      this.notificationService.showToast(`処理が完了しました。${response.appendedCount}件のデータを追記しました。`, 'success');
+
+      const results = await this.sheetApiService.processCsvBatch(validTargets, file, options);
+      const totalDuration = Math.round((performance.now() - startTime) / 100) / 10;
+
+      const successItems = results.filter(r => r.ok);
+      const failureItems = results.length - successItems.length;
+      const totalProcessed = successItems.reduce((sum, r) => sum + r.processed, 0);
+      const totalMatched = successItems.reduce((sum, r) => sum + r.matched, 0);
+      const totalAppended = successItems.reduce((sum, r) => sum + r.appendedCount, 0);
+
+      this.result.set({
+        totalDuration,
+        totalProcessed,
+        totalMatched,
+        totalAppended,
+        successCount: successItems.length,
+        failureCount: failureItems,
+        items: results,
+      });
+
+      if (successItems.length > 0) {
+        this.notificationService.showToast(
+          `処理が完了しました。${successItems.length}件成功（追記 ${totalAppended} 件）、失敗 ${failureItems} 件。`,
+          failureItems > 0 ? 'error' : 'success'
+        );
+      } else {
+        this.notificationService.showToast('全てのシート処理に失敗しました。入力内容を確認してください。', 'error');
+      }
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.notificationService.showToast(`エラーが発生しました: ${errorMessage}`, 'error');
         const duration = Math.round((performance.now() - startTime) / 100) / 10;
         this.result.set({
-            ok: false,
-            processed: 0,
-            matched: 0,
-            appendedCount: 0,
-            duration: duration,
-            error: errorMessage,
+          totalDuration: duration,
+          totalProcessed: 0,
+          totalMatched: 0,
+          totalAppended: 0,
+          successCount: 0,
+          failureCount: 0,
+          items: [],
         });
     } finally {
         this.notificationService.stopProcessing();

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { ProcessCsvResponse } from '../models';
+import { ProcessCsvResponse, SheetProcessResult, SheetTarget } from '../models';
 
 export interface ProcessCsvOptions {
   encodingHint?: string;
@@ -53,29 +53,79 @@ export class SheetApiService {
     });
   }
 
-  async processCsv(sheetUrl: string, file: File, options: ProcessCsvOptions = {}): Promise<ProcessCsvResponse> {
+  private async getCsvBase64(file: File): Promise<string> {
     const dataUrl = await this.fileToBase64(file);
-    const base64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
-    
-    const payload = { 
-      action: 'processCsv', 
-      sheetUrl, 
-      csvBase64: base64,
-      sheetName: 'フォームの回答 1',  // 「回答」と「1」の間に半角スペース
-      debug: true,
-      ...(options.encodingHint && { encodingHint: options.encodingHint }),
-      ...(options.mdqOnly && { mdqOnly: options.mdqOnly }),
-    };
+    return dataUrl.substring(dataUrl.indexOf(',') + 1);
+  }
 
-    const response = await this.api<ProcessCsvResponse>(payload);
+  async processCsvBatch(targets: SheetTarget[], file: File, options: ProcessCsvOptions = {}): Promise<SheetProcessResult[]> {
+    if (!targets.length) return [];
 
-    if (response.ok && payload.debug && (response.encodingUsed || response.hitExamples)) {
-      console.log('Debug Info from API:', {
-        encodingUsed: response.encodingUsed,
-        hitExamples: response.hitExamples,
-      });
+    const csvBase64 = await this.getCsvBase64(file);
+    const results: SheetProcessResult[] = [];
+
+    for (const target of targets) {
+      const start = performance.now();
+      try {
+        const payload = {
+          action: 'processCsv',
+          sheetUrl: target.url,
+          csvBase64,
+          debug: true,
+          ...(target.sheetName && { sheetName: target.sheetName }),
+          ...(options.encodingHint && { encodingHint: options.encodingHint }),
+          ...(options.mdqOnly && { mdqOnly: options.mdqOnly }),
+        };
+
+        const response = await this.api<ProcessCsvResponse>(payload);
+        const duration = Math.round((performance.now() - start) / 100) / 10;
+
+        if (response.ok && payload.debug && (response.encodingUsed || response.hitExamples)) {
+          console.log('Debug Info from API:', {
+            sheetUrl: target.url,
+            sheetName: target.sheetName,
+            encodingUsed: response.encodingUsed,
+            hitExamples: response.hitExamples,
+          });
+        }
+
+        results.push({
+          sheetUrl: target.url,
+          sheetName: target.sheetName,
+          ok: response.ok,
+          processed: response.processed,
+          matched: response.matched,
+          appendedCount: response.appendedCount,
+          duration,
+          encodingUsed: response.encodingUsed,
+          response,
+        });
+      } catch (error) {
+        const duration = Math.round((performance.now() - start) / 100) / 10;
+        results.push({
+          sheetUrl: target.url,
+          sheetName: target.sheetName,
+          ok: false,
+          processed: 0,
+          matched: 0,
+          appendedCount: 0,
+          duration,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
-    return response;
+    return results;
+  }
+
+  async processCsv(sheetUrl: string, file: File, options: ProcessCsvOptions = {}, sheetName?: string): Promise<ProcessCsvResponse> {
+    const [result] = await this.processCsvBatch([{ url: sheetUrl, sheetName }], file, options);
+    if (!result) {
+      throw new Error('処理対象のシートが設定されていません。');
+    }
+    if (!result.ok) {
+      throw new Error(result.error || 'シート処理に失敗しました。');
+    }
+    return result.response as ProcessCsvResponse;
   }
 }
