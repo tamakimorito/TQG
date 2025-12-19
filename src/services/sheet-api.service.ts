@@ -26,9 +26,6 @@ export class SheetApiService {
 
       try {
         const json = JSON.parse(responseText);
-        if (!json.ok) {
-          throw new Error(json.error || "An unknown API error occurred");
-        }
         return json as T;
       } catch (e) {
         console.error("Failed to parse JSON from response text:", responseText, e);
@@ -53,13 +50,13 @@ export class SheetApiService {
     });
   }
 
-  async processCsv(sheetUrl: string, file: File, options: ProcessCsvOptions = {}): Promise<ProcessCsvResponse> {
+  async processCsv(sheetUrls: string[], file: File, options: ProcessCsvOptions = {}): Promise<ProcessCsvResponse> {
     const dataUrl = await this.fileToBase64(file);
     const base64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
     
     const payload = { 
       action: 'processCsv', 
-      sheetUrl, 
+      sheetUrls, 
       csvBase64: base64,
       sheetName: 'フォームの回答 1',  // 「回答」と「1」の間に半角スペース
       debug: true,
@@ -69,12 +66,11 @@ export class SheetApiService {
 
     const response = await this.api<ProcessCsvResponse>(payload);
 
-    if (response.ok && payload.debug && (response.encodingUsed || response.hitExamples)) {
-      console.log('Debug Info from API:', {
-        encodingUsed: response.encodingUsed,
-        hitExamples: response.hitExamples,
-      });
-    }
+    console.log('Debug Info from API:', {
+      encodingUsed: response.encodingUsed,
+      triedEncodings: response.triedEncodings,
+      results: response.results,
+    });
 
     return response;
   }

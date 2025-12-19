@@ -2,6 +2,11 @@
 - Format: `YYYY/MM/DD - vX.Y.Z`: short title
 - Rules: append-only, do not rewrite history.
 
+## 2025/12/19 - v1.3.2
+- Feature: 複数スプレッドシートURLを改行入力で受け付け、一括処理＆シート単位の結果カードを表示。
+- Feature: GASを v1.6.4 に更新し、sheetUrls 配列対応＋各シートのタイトル/タブ名を返却。
+- Docs: memory/spec.md を新設し、multi-sheet 処理仕様とI/Fを整理。
+
 ## 2025/10/27 - v1.0.0
 - Create TQG app: CSV.B ↔ Sheet.A lookup (zenkaku/hankaku A–Z insensitive).
 - Append [Q,T,U,V,C] per hit as one row at tail.
