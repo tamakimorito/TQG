@@ -27,3 +27,8 @@
 - キー比較を normalizeKey(NFKC+不可視除去+Uppercase) に強化。
 - debug で sampleCsvKeys/sampleAKeys を返却（原因即時特定用）。
 - I/F互換は維持、追加プロパティは任意。
+
+## 2025/12/19 - v1.3.2
+- Feature: スプレッドシートURLを改行区切りで複数入力し、一括処理・シート単位表示に対応。
+- Enhance: GASとフロント間のレスポンスに spreadsheetTitle/sheetUrl を付与し、batch API（processCsvBatch）とフォールバックを実装。
+- Docs: `memory/spec.md` 追加、`rules.md` 更新、GAS v1.6.4 を `memory/tqg-gas-v1.6.4.js` に保存。

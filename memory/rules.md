@@ -1,3 +1,17 @@
+# 開発ルール (v1.3.2)
+- バージョンは **0.01** ずつ上げること。更新時は必ず `memory/changelog.md`・`memory/spec.md`・本ファイルを参照し、必要に応じて追記する。
+- ユーザーへの返答やUIテキストは日本語で統一し、英語は固有名詞やプログラム用語のみ使用可。
+- スプレッドシートURLは改行区切り入力が前提。UI/ロジックで複数URLの同時処理と、結果のシート単位表示を崩さないこと。
+- フロントエンドは `SheetApiService.processCsvForSheets` を経由してAPIを呼び出し、`processCsvBatch` が利用できない環境でもシーケンシャルフォールバックで動作することを確認する。
+- バックエンドGASは `processCsvBatch`（複数URL一括）を優先し、`processCsv` でも互換性を維持する。レスポンスには `sheetUrl` と `spreadsheetTitle` を含め、既存の突合/欠落埋め/列記号指定ロジックを壊さない。
+- ドキュメント運用: `memory` 配下にGASコードを保存し、仕様変更があれば `spec.md` に反映する。不要な差分は避けるが、破綻や不整合を見つけた場合は明記してから修正する。
+- テストは可能な範囲で `npm run build` を実行し、結果を記録する。
+
+---
+
+## 参考: 旧GASスニペット (v1.3.1)
+以下は初期実装の参照用コード。互換性検討時のみ参照。
+```javascript
 /***** TQG GAS v1.3.1 (from scratch) *****/
 
 const PROP_KEY_SHEETS = 'TQG_SHEETS';
@@ -181,3 +195,4 @@ function doPost(e) {
     return RESP(false, { error: String(err && (err.stack || err.message) || err) });
   }
 }
+```
