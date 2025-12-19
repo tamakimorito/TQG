@@ -3,30 +3,32 @@
     <h1 class="text-3xl font-bold text-center text-[#5A3A1B]">TQG</h1>
     <p class="text-center text-[#5A3A1B]/80">
       CSVのB列（英数字の全角/半角差を吸収）とスプレッドシートのA列を照合し、一致した各行の「右端の次の列」から [Q,T,U,V,C] を横方向に貼り付けます。<br>
-      CSVはUTF-8/Shift_JISいずれでも可。
+      CSVはUTF-8/Shift_JISいずれでも可。複数スプレッドシートURLを改行で入力すると一括更新できます。
     </p>
 
     <div class="space-y-4">
       <!-- Step 1: Enter Sheet URL -->
       <div>
         <label for="sheet-url" class="block text-sm font-medium text-[#5A3A1B] mb-1">
-          <span class="text-white bg-[#2E7D32] rounded-full px-2 py-0.5 mr-2">1</span>対象のスプレッドシートURL
+          <span class="text-white bg-[#2E7D32] rounded-full px-2 py-0.5 mr-2">1</span>対象のスプレッドシートURL（改行区切りで複数入力可）
         </label>
-        <input id="sheet-url" type="url"
-               [value]="sheetUrl()"
-               (input)="onSheetUrlInput($event)"
-               placeholder="https://docs.google.com/spreadsheets/d/..."
-               class="w-full p-3 border rounded-md bg-[#FFF9E6] focus:ring-[#FFC400] focus:border-[#FFC400] transition"
-               [class.border-[#5A3A1B]/30]="sheetUrl() === '' || isValidSheetUrl()"
-               [class.border-red-500]="sheetUrl() !== '' && !isValidSheetUrl()"
-               [class.focus:border-red-500]="sheetUrl() !== '' && !isValidSheetUrl()"
-               [class.focus:ring-red-500]="sheetUrl() !== '' && !isValidSheetUrl()"
-               aria-invalid="{{ sheetUrl() !== '' && !isValidSheetUrl() }}">
-        @if (sheetUrl() !== '' && !isValidSheetUrl()) {
-          <p class="text-sm text-red-600 mt-1" id="url-error">
-            有効なGoogleスプレッドシートのURLを入力してください。
-          </p>
-        }
+        <textarea id="sheet-url"
+                  rows="4"
+                  [value]="sheetUrlsInput()"
+                  (input)="onSheetUrlInput($event)"
+                  placeholder="https://docs.google.com/spreadsheets/d/xxx\nhttps://docs.google.com/spreadsheets/d/yyy"
+                  class="w-full p-3 border rounded-md bg-[#FFF9E6] focus:ring-[#FFC400] focus:border-[#FFC400] transition resize-y min-h-[140px]"
+                  [class.border-[#5A3A1B]/30]="sheetUrlsInput() === '' || invalidSheetUrls().length === 0"
+                  [class.border-red-500]="invalidSheetUrls().length > 0"
+                  [class.focus:border-red-500]="invalidSheetUrls().length > 0"
+                  [class.focus:ring-red-500]="invalidSheetUrls().length > 0"
+                  aria-invalid="{{ invalidSheetUrls().length > 0 }}"></textarea>
+        <div class="flex items-center justify-between text-sm mt-1">
+          <p class="text-[#5A3A1B]/80">入力行数: {{ sheetUrls().length }} / 有効: {{ validSheetUrls().length }}</p>
+          @if (invalidSheetUrls().length > 0) {
+            <p class="text-red-600" id="url-error">無効なURLが {{ invalidSheetUrls().length }} 件あります。</p>
+          }
+        </div>
       </div>
 
       <!-- Step 2: Upload CSV -->
@@ -102,6 +104,11 @@
           <p class="font-bold">エラーが発生しました</p>
           <p>{{ res.error }}</p>
         </div>
+      } @else if (!res.response) {
+        <div class="mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert">
+          <p class="font-bold">結果を取得できませんでした</p>
+          <p>処理結果の受信に失敗しました。</p>
+        </div>
       } @else {
         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
           <div class="bg-[#FFF9E6] p-4 rounded-lg">
@@ -109,17 +116,85 @@
             <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.duration }}<span class="text-base ml-1">秒</span></p>
           </div>
           <div class="bg-[#FFF9E6] p-4 rounded-lg">
-            <p class="text-sm text-[#5A3A1B]/70">CSV処理行数</p>
-            <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.processed }}</p>
+            <p class="text-sm text-[#5A3A1B]/70">対象スプレッドシート</p>
+            <p class="text-2xl font-bold text-[#5A3A1B]">{{ sheetResultCount() }}</p>
           </div>
           <div class="bg-[#FFF9E6] p-4 rounded-lg">
-            <p class="text-sm text-[#5A3A1B]/70">一致件数</p>
-            <p class="text-2xl font-bold text-[#5A3A1B]">{{ res.matched }}</p>
+            <p class="text-sm text-[#5A3A1B]/70">成功件数</p>
+            <p class="text-2xl font-bold text-[#2E7D32]">
+              {{ successSheetCount() }}
+            </p>
           </div>
           <div class="bg-[#FFF9E6] p-4 rounded-lg">
-            <p class="text-sm text-[#5A3A1B]/70">データ追記件数</p>
-            <p class="text-2xl font-bold text-[#2E7D32]">{{ res.appendedCount }}</p>
+            <p class="text-sm text-[#5A3A1B]/70">総更新件数</p>
+            <p class="text-2xl font-bold text-[#2E7D32]">
+              {{ totalUpdatedCount() }}
+            </p>
           </div>
+        </div>
+
+        @if (!res.response.ok) {
+          <div class="mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert">
+            <p class="font-bold">一部処理に失敗しました</p>
+            <p>{{ res.response.error || '処理中にエラーが発生しました。各シートの結果を確認してください。' }}</p>
+          </div>
+        }
+
+        <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          @for (sheet of res.response.results; track sheet.sheetUrl) {
+            <div class="border rounded-lg p-4 bg-white/70 shadow-sm"
+                 [class.border-[#2E7D32]]="sheet.ok"
+                 [class.border-red-500]="!sheet.ok">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <p class="text-sm text-[#5A3A1B]/60">タイトル</p>
+                  <h3 class="text-lg font-bold text-[#5A3A1B] break-words">{{ sheet.sheetTitle || 'タイトル取得不可' }}</h3>
+                  <a class="text-xs text-blue-600 underline break-all" [href]="sheet.sheetUrl" target="_blank" rel="noreferrer">
+                    {{ sheet.sheetUrl }}
+                  </a>
+                  @if (sheet.usedSheetName) {
+                    <p class="text-xs text-[#5A3A1B]/70 mt-1">処理タブ: {{ sheet.usedSheetName }}</p>
+                  }
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold"
+                      [class.bg-[#E8F5E9]]="sheet.ok"
+                      [class.text-[#2E7D32]]="sheet.ok"
+                      [class.bg-red-100]="!sheet.ok"
+                      [class.text-red-700]="!sheet.ok">
+                  {{ sheet.ok ? '成功' : '失敗' }}
+                </span>
+              </div>
+
+              @if (sheet.ok) {
+                <div class="mt-3 grid grid-cols-2 gap-2 text-center">
+                  <div class="bg-[#FFF9E6] rounded-md p-2">
+                    <p class="text-xs text-[#5A3A1B]/70">処理行数</p>
+                    <p class="text-xl font-bold text-[#5A3A1B]">{{ sheet.processed }}</p>
+                  </div>
+                  <div class="bg-[#FFF9E6] rounded-md p-2">
+                    <p class="text-xs text-[#5A3A1B]/70">一致件数</p>
+                    <p class="text-xl font-bold text-[#5A3A1B]">{{ sheet.matched }}</p>
+                  </div>
+                  <div class="bg-[#FFF9E6] rounded-md p-2">
+                    <p class="text-xs text-[#5A3A1B]/70">更新件数</p>
+                    <p class="text-xl font-bold text-[#2E7D32]">{{ sheet.updatedCount ?? sheet.appendedCount ?? 0 }}</p>
+                  </div>
+                  <div class="bg-[#FFF9E6] rounded-md p-2">
+                    <p class="text-xs text-[#5A3A1B]/70">未一致</p>
+                    <p class="text-xl font-bold text-[#5A3A1B]">{{ sheet.unmatchedCount ?? 0 }}</p>
+                  </div>
+                </div>
+              }
+
+              @if (!sheet.ok) {
+                <div class="mt-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md p-3">
+                  <p class="font-semibold">失敗理由</p>
+                  <p class="mt-1">{{ sheet.error || '詳細情報なし' }}</p>
+                  @if (sheet.detail) { <p class="mt-1 text-xs text-red-600/80 break-words">{{ sheet.detail }}</p> }
+                </div>
+              }
+            </div>
+          }
         </div>
       }
     </div>
